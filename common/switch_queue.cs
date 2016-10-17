@@ -27,7 +27,7 @@ public class SwitchQueue<T> where T : class {
 	}
 
 	// producer
-	public void Push( T obj ) {
+	public void Enqueue( T obj ) {
 		lock (mProduceQueue) 
 		{
 			mProduceQueue.Enqueue( obj );
@@ -35,7 +35,7 @@ public class SwitchQueue<T> where T : class {
 	}
 
 	// consumer.
-	public T Pop() {
+	public T Dequeue() {
 
 		return (T)mConsumeQueue.Dequeue();
 	}

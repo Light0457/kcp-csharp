@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -378,10 +378,13 @@ public class KCP
                 snd_buf = append<Segment>(slice<Segment>(snd_buf, 0, index), slice<Segment>(snd_buf, index + 1, snd_buf.Length));
                 break;
             }
-            else
-            {
-                seg.fastack++;
-            }
+            //else
+            //{
+            //    seg.fastack++;
+            //}
+			if (_itimediff (sn, seg.sn) < 0) {
+				break;
+			}
 
             index++;
         }
@@ -398,6 +401,20 @@ public class KCP
 
         if (0 < count) snd_buf = slice<Segment>(snd_buf, count, snd_buf.Length);
     }
+
+	void parse_fastack (UInt32 sn)
+	{
+		if (_itimediff (sn, snd_una) < 0 || _itimediff (sn, snd_nxt) >= 0)
+			return;
+
+		foreach (var seg in snd_buf) {
+			if (_itimediff (sn, seg.sn) < 0) {
+				break;
+			} else if (sn != seg.sn) {
+				seg.fastack++;
+			}
+		}
+	}
 
     void ack_push(UInt32 sn, UInt32 ts) {
         acklist = append<UInt32>(acklist, new UInt32[2]{sn, ts});
@@ -461,6 +478,9 @@ public class KCP
         var s_una = snd_una;
         if (data.Length < IKCP_OVERHEAD) return 0;
 
+		UInt32 maxack = 0;
+		int flag = 0;
+
         var offset = 0;
 
         while (true)
@@ -512,6 +532,15 @@ public class KCP
                 }
                 parse_ack(sn);
                 shrink_buf();
+
+				if (flag == 0) {
+					flag = 1;
+					maxack = sn;
+				} else {
+					if (_itimediff (sn, maxack) > 0) {
+						maxack = sn;
+					}
+				}
             }
             else if (IKCP_CMD_PUSH == cmd) {
                 if (_itimediff(sn, rcv_nxt + rcv_wnd) < 0) {
@@ -547,6 +576,10 @@ public class KCP
 
             offset += (int)length;
         }
+
+		if (flag != 0) {
+			parse_fastack (maxack);
+		}
 
         if (_itimediff(snd_una, s_una) > 0) {
             if (cwnd < rmt_wnd) {
